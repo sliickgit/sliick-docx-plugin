@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Office.js add-in dev certs / local config
+.env
+.env.local
+*.local
+
+# Salesforce
+.sfdx/
+.sf/
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
