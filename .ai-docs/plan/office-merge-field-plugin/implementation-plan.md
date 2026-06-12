@@ -1,5 +1,29 @@
 # Sliick Docx Plugin — MS Office Merge-Field Plugin
 
+> **Alignment update (2026-06-12).** sliick-docs already has a planned engine
+> sprint — `sliick-docs/.ai-docs/plan/sprint-docx-input/functional-requirements.md`
+> (Phase H: uploaded `.docx` templates, `{{...}}` grammar, run coalescing, tag
+> evaluator, upload validation, `Source_Type__c='Uploaded'`) — which explicitly
+> deferred the in-Word add-in. **This repo is that add-in.** The backend work for
+> this plugin is now planned separately as
+> `sliick-docs/.ai-docs/plan/sprint-office-addin-backend/functional-requirements.md`
+> (ECA + CORS + REST contract wrapping Phase H services) and will be built on a
+> sliick-docs feature branch independently. Supersessions for this doc:
+> - Backend class names: Phase H's `TemplateDocxMergeService` / `DocxRunCoalescer`
+>   / `DocxTagEvaluator` / `TemplateUploadedDocxValidator` replace the
+>   `OfficeMergeEngine` / `OfficePdfSafetyLint` placeholders below.
+> - Else token is **`{{:else}}`** (not `{{else}}`).
+> - Engine v1 constraints the add-in must respect (gate wizards via the
+>   `capabilities` endpoint): no nested loops, no aggregates, max 1 parent hop
+>   inside a repeat, loops are paragraph- or single-table-row-scope, 10 MB cap.
+>   Aggregates/nested loops/barcodes/signature tags are capability-flagged
+>   follow-ons (backend plan §8.2).
+> - Upload is **two-step** (standard ContentVersion REST for the binary, then
+>   `POST /office/v1/templates` to attach + validate) because Apex REST caps
+>   sync payloads at 6 MB.
+> - PDF output of uploaded templates is a follow-on backend sprint (§8.1 there);
+>   the PDF strategy section below remains the design of record for it.
+
 ## Context
 
 `sliick-docs` is a Salesforce managed package (namespace `sliick`, API v66) that
@@ -88,7 +112,7 @@ implementation. Field keys are 1:1 with `TemplateMergeFieldService.discover()`.
 | Format       | `{{Amount:currency}}`, `{{CloseDate:MM/dd/yyyy}}`, `{{Active:checkbox}}`, `{{Stage:label}}` |
 | Built-ins    | `{{Today}}`, `{{Now}}`, `{{RunningUser.Name}}` |
 | Loop (child) | `{{#Contacts}} … {{FirstName}} … {{/Contacts}}` (nested OK; `{{#Approvals}}` synthetic) |
-| Conditional  | `{{#if Amount > 50000}} … {{else}} … {{/if}}`; truthy `{{#IsActive}}…{{/IsActive}}`; inverse `{{^HasDiscount}}…{{/HasDiscount}}` |
+| Conditional  | `{{#if Amount > 50000}} … {{:else}} … {{/if}}`; truthy `{{#IsActive}}…{{/IsActive}}`; inverse `{{^HasDiscount}}…{{/HasDiscount}}` |
 | Aggregate    | `{{SUM:OpportunityLineItems.TotalPrice}}`, `{{COUNT:Contacts}}` |
 | Image        | `{{%Logo__c:200x60}}`, `{{%Image:0}}` (nth attached) |
 | Barcode/QR   | `{{*ProductCode}}` (Code 128), `{{*Website:qr:200}}` — Tier 2 |

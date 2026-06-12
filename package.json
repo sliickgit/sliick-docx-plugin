@@ -1,0 +1,26 @@
+{
+  "name": "sliick-docx-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sliick Docs for Microsoft Office — insert Salesforce merge fields into Word, Excel, and PowerPoint templates",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "certs": "office-addin-dev-certs install",
+    "validate": "office-addin-manifest validate manifest.xml",
+    "sideload": "office-addin-debugging start manifest.xml desktop --no-debug",
+    "sideload:stop": "office-addin-debugging stop manifest.xml",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/office-js": "^1.0.500",
+    "office-addin-debugging": "^6.0.3",
+    "office-addin-dev-certs": "^2.0.3",
+    "office-addin-manifest": "^2.0.3",
+    "typescript": "^5.8.0",
+    "vite": "^7.0.0",
+    "vitest": "^4.1.8"
+  }
+}
