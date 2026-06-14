@@ -118,6 +118,9 @@ describe("MockSliickClient.saveTemplate", () => {
       "Resolved",
       "Structural",
     ]);
+    // office-pdf: save response carries the native-PDF verdict.
+    expect(result.pdfReady).toBe(true);
+    expect(result.pdfWarnings).toEqual([]);
   });
 
   it("returns Invalid with a warning-free catalog when a tag is unknown", async () => {

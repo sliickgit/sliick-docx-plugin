@@ -254,9 +254,18 @@ normal Sliick Docs lifecycle, handled inside Salesforce (not in Word):
 Generated documents are saved to **Files** on the record and can be emailed
 automatically, depending on how your admin has set things up.
 
-**Output is Word (.docx).** Office templates produce Word documents that
-preserve your exact formatting. (PDF output for Office templates is on the
-roadmap.)
+**Output: Word (.docx) — and PDF when the template supports it.** Office
+templates always generate Word, preserving your exact formatting. **PDF** is
+also available for templates that are "PDF-ready" (see below). Which format is
+produced is chosen **at generation time in Salesforce** — on the record's
+Generate button, in a Flow, or in the Batch console — not in Word.
+
+After you save, the results panel tells you whether the template is **PDF-ready**.
+Some Word features don't survive native PDF rendering (text boxes, custom fonts,
+floating images, SmartArt/shapes); if your template uses them, it stays
+**Word-only** and the panel lists what to change — the Word output is unaffected
+either way. Stick to tables, inline images, and standard fonts to keep a
+template PDF-ready.
 
 You can revise a template any time: open the document in Word, make changes,
 and **Save to Salesforce** again to create a new version.
@@ -303,7 +312,8 @@ A few Word habits keep generated documents looking right:
 
 - **Excel and PowerPoint** — Word only for now.
 - **More than one level of loop nesting** (a loop inside a loop inside a loop).
-- **PDF output** — Office templates generate Word; PDF is on the roadmap.
+- **PDF for non-PDF-ready templates** — templates using text boxes, custom
+  fonts, floating images, or SmartArt stay Word-only (the save panel says so).
 - **Barcodes / QR codes.**
 
 The pane only offers what your installed Sliick Docs version supports, so you

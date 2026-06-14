@@ -94,6 +94,15 @@ export interface SaveTemplateResponse {
   validationStatus: "Valid" | "Invalid";
   tagCatalog: TagCatalogEntry[];
   warnings: ApiWarning[];
+  /**
+   * Native-PDF safety verdict (office-pdf sprint). The backend computes this in
+   * the validator (`pdfReady` + `pdfWarnings`); both are optional here so the
+   * pane works whether or not the REST response surfaces them yet — when
+   * present, the save-results panel shows PDF readiness + the per-feature
+   * warnings (text boxes, custom fonts, …) that keep a template DOCX-only.
+   */
+  pdfReady?: boolean;
+  pdfWarnings?: string[];
 }
 
 export interface ApiWarning {

@@ -141,7 +141,7 @@ const CAPABILITIES: CapabilitiesResponse = {
     imageFields: true,
     barcodes: false,
     signatureTags: false,
-    pdfOutput: false,
+    pdfOutput: true,
   },
   limits: { maxFileMb: 10, maxParentHops: 5, maxParentHopsInRepeat: 1 },
 };
@@ -348,6 +348,11 @@ export class MockSliickClient implements SliickApi {
         tagCatalog.length === 0
           ? [{ code: "NO_TAGS", message: "No merge tags found in the document." }]
           : [],
+      // The real native-PDF verdict comes from the backend OOXML lint (text
+      // boxes, fonts, …), which can't be detected from plain body text — mock
+      // mode reports PDF-ready so the badge is demoable.
+      pdfReady: true,
+      pdfWarnings: [],
     });
   }
 

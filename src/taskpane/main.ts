@@ -896,11 +896,29 @@ function renderLintResults(result: SaveTemplateResponse): HTMLElement {
   const warnings = result.warnings
     .map((w) => `<div class="banner info">${esc(w.message)}</div>`)
     .join("");
+  // PDF readiness (office-pdf). Only shown when the org supports PDF output and
+  // the backend returned a verdict. Word output is unaffected either way.
+  const pdfSupported = state.capabilities?.features.pdfOutput === true;
+  let pdfBanner = "";
+  if (pdfSupported && result.pdfReady !== undefined) {
+    if (result.pdfReady) {
+      pdfBanner = `<div class="banner ok">PDF-ready — this template can also generate PDF.</div>`;
+    } else {
+      const reasons = (result.pdfWarnings ?? [])
+        .map((w) => `<li>${esc(w)}</li>`)
+        .join("");
+      pdfBanner =
+        `<div class="banner info"><b>Word only for now.</b> This template has features that won't render in native PDF` +
+        (reasons ? `:<ul class="lint-list">${reasons}</ul>` : ".") +
+        ` It still generates Word perfectly.</div>`;
+    }
+  }
   const root = el(`
     <div class="section">
       <div class="section-head">Save results</div>
       <div class="form">
         ${statusBanner}
+        ${pdfBanner}
         ${warnings}
         ${result.tagCatalog.length > 0 ? `<ul class="lint-list">${items}</ul>` : ""}
         <div class="btn-row">
