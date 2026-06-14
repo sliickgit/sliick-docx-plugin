@@ -5,12 +5,18 @@ Microsoft Word**: browse a Salesforce org's merge-field catalog, insert
 `{{Object.Field}}` tags, repeating tables, and conditionals, then save the
 document to Salesforce as an Uploaded template — with inline tag validation.
 
+**Authoring a template? See the [User Guide](docs/user-guide.md)** — the
+end-user walkthrough for connecting to Salesforce, inserting fields, building
+repeating tables and conditions, saving, and previewing. This README is for
+developers.
+
 Companion to the [sliick-docs](../sliick-docs) managed package. The Salesforce
 side of this integration is specified in
 `sliick-docs/.ai-docs/plan/sprint-office-addin-backend/functional-requirements.md`
 (REST contract v1) and builds on the `sprint-docx-input` engine sprint.
 The add-in plan lives at
-[.ai-docs/plan/office-merge-field-plugin/implementation-plan.md](.ai-docs/plan/office-merge-field-plugin/implementation-plan.md).
+[.ai-docs/plan/office-merge-field-plugin/implementation-plan.md](.ai-docs/plan/office-merge-field-plugin/implementation-plan.md);
+design decisions in [.ai-docs/decisions/adr.md](.ai-docs/decisions/adr.md).
 
 ## Status
 

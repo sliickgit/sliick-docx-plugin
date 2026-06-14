@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  aggregateTag,
+  compoundConditionTags,
   conditionalTags,
   defaultFormatForType,
+  imageTag,
   inLoopFieldKey,
   inverseTags,
   loopRowCellTexts,
@@ -108,6 +111,49 @@ describe("defaultFormatForType", () => {
     expect(defaultFormatForType("boolean")).toBe("checkbox");
     expect(defaultFormatForType("date")).toBe("MM/dd/yyyy");
     expect(defaultFormatForType("string")).toBeUndefined();
-    expect(defaultFormatForType("picklist")).toBeUndefined();
+    // Picklists auto-apply :label so the doc shows the label, not the API value.
+    expect(defaultFormatForType("picklist")).toBe("label");
+    expect(defaultFormatForType("multipicklist")).toBe("label");
+  });
+});
+
+describe("aggregateTag", () => {
+  it("builds COUNT without a field and SUM/AVG with a field + format", () => {
+    expect(aggregateTag("COUNT", "Contacts")).toBe("{{COUNT:Contacts}}");
+    expect(aggregateTag("SUM", "OpportunityLineItems", "TotalPrice", "currency")).toBe(
+      "{{SUM:OpportunityLineItems.TotalPrice:currency}}",
+    );
+    expect(aggregateTag("AVG", "OpportunityLineItems", "UnitPrice")).toBe(
+      "{{AVG:OpportunityLineItems.UnitPrice}}",
+    );
+  });
+});
+
+describe("imageTag", () => {
+  it("builds bare and sized image tags", () => {
+    expect(imageTag("Account.Logo__c")).toBe("{{%Account.Logo__c}}");
+    expect(imageTag("Account.Logo__c", 200, 60)).toBe("{{%Account.Logo__c:200x60}}");
+  });
+});
+
+describe("compoundConditionTags", () => {
+  it("joins clauses with AND/OR and single-quotes string values", () => {
+    const t = compoundConditionTags(
+      [
+        { fieldKey: "Account.AnnualRevenue", operator: ">", value: "50000", quoteValue: false },
+        { fieldKey: "Account.Industry", operator: "=", value: "Technology", quoteValue: true },
+      ],
+      "AND",
+      true,
+    );
+    expect(t.open).toBe(
+      "{{#if Account.AnnualRevenue > 50000 AND Account.Industry = 'Technology'}}",
+    );
+    expect(t.elseTag).toBe("{{:else}}");
+    expect(t.close).toBe("{{/if}}");
+  });
+
+  it("rejects an empty clause list", () => {
+    expect(() => compoundConditionTags([], "AND", false)).toThrow();
   });
 });

@@ -52,9 +52,11 @@ export interface CapabilitiesResponse {
   features: {
     conditionals: boolean;
     inverseConditionals: boolean;
+    compoundConditions: boolean;
     childLoops: boolean;
     nestedLoops: boolean;
     aggregates: boolean;
+    picklistLabels: boolean;
     imageFields: boolean;
     barcodes: boolean;
     signatureTags: boolean;

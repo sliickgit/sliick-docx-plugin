@@ -28,11 +28,21 @@ import {
   normalizeOrgUrl,
   saveSettings,
 } from "../auth/settings";
-import { defaultFormatForType, inLoopFieldKey, scalarTag } from "../office/tags";
+import {
+  AggregateFn,
+  aggregateTag,
+  compoundConditionTags,
+  ConditionClause,
+  defaultFormatForType,
+  imageTag,
+  inLoopFieldKey,
+  scalarTag,
+} from "../office/tags";
 import {
   getDocumentAsBase64,
   getDocumentText,
   insertConditional,
+  insertConditionalTags,
   insertInverse,
   insertLoopTable,
   insertScalar,
@@ -47,6 +57,7 @@ type View =
   | { kind: "connect" }
   | { kind: "loopWizard"; rel: ChildRelationshipDef; childFields: MergeFieldDef[] }
   | { kind: "condWizard"; mode: "if" | "inverse" }
+  | { kind: "imageWizard" }
   | { kind: "save" }
   | { kind: "lintResults"; result: SaveTemplateResponse };
 
@@ -299,6 +310,9 @@ function render(): void {
     case "loopWizard":
       pane.appendChild(renderLoopWizard(state.view.rel, state.view.childFields));
       break;
+    case "imageWizard":
+      pane.appendChild(renderImageWizard());
+      break;
     case "condWizard":
       pane.appendChild(renderCondWizard(state.view.mode));
       break;
@@ -487,6 +501,14 @@ function renderMain(pane: HTMLElement): void {
     });
     actions.appendChild(b);
   }
+  if (caps?.imageFields) {
+    const b = el(`<button class="btn secondary" title="Insert an image from a file/field on the record">+ Image</button>`);
+    b.addEventListener("click", () => {
+      state.view = { kind: "imageWizard" };
+      render();
+    });
+    actions.appendChild(b);
+  }
   actions.appendChild(el(`<span class="spacer"></span>`));
   const saveBtn = el(`<button class="btn primary">Save to Salesforce</button>`);
   saveBtn.addEventListener("click", () => {
@@ -561,6 +583,14 @@ function relationshipSection(rels: ChildRelationshipDef[]): HTMLElement {
 
 // ---------- loop wizard ----------
 
+/** Currency/percent format for an aggregated numeric field, else undefined. */
+function aggregateFormatFor(inLoopKey: string, numericFields: MergeFieldDef[]): string | undefined {
+  const match = numericFields.find((f) => inLoopFieldKey(f.key) === inLoopKey);
+  if (!match) return undefined;
+  const fmt = defaultFormatForType(match.type);
+  return fmt === "currency" || fmt === "percent" ? fmt : undefined;
+}
+
 function renderLoopWizard(rel: ChildRelationshipDef, childFields: MergeFieldDef[]): HTMLElement {
   const checks = childFields
     .map(
@@ -568,6 +598,13 @@ function renderLoopWizard(rel: ChildRelationshipDef, childFields: MergeFieldDef[
         `<label><input type="checkbox" data-i="${i}" ${i < 3 ? "checked" : ""}/> ${esc(f.label)} <span class="f-type">${esc(f.type)}</span></label>`,
     )
     .join("");
+  const numericFields = childFields.filter((f) =>
+    ["currency", "double", "int", "integer", "percent", "long"].includes(f.type.toLowerCase()),
+  );
+  const aggFieldOptions = numericFields
+    .map((f) => `<option value="${esc(inLoopFieldKey(f.key))}">${esc(f.label)}</option>`)
+    .join("");
+  const aggregatesOn = state.capabilities?.features.aggregates !== false;
   const root = el(`
     <div class="section">
       <div class="section-head">Repeating table — ${esc(rel.label)}</div>
@@ -579,8 +616,41 @@ function renderLoopWizard(rel: ChildRelationshipDef, childFields: MergeFieldDef[
           <button class="btn primary" id="lw-insert">Insert table</button>
           <button class="btn secondary" id="lw-cancel">Cancel</button>
         </div>
+        ${
+          aggregatesOn
+            ? `<hr/>
+        <p class="hint">Insert a total (placed outside the table, e.g. a summary row):</p>
+        <div class="btn-row">
+          <select id="lw-agg-fn">
+            <option value="SUM">Sum</option><option value="COUNT">Count</option>
+            <option value="AVG">Average</option><option value="MIN">Min</option><option value="MAX">Max</option>
+          </select>
+          <select id="lw-agg-field">${aggFieldOptions}</select>
+          <button class="btn secondary" id="lw-agg-insert">Insert total</button>
+        </div>`
+            : ""
+        }
       </div>
     </div>`);
+
+  const aggInsert = root.querySelector("#lw-agg-insert");
+  if (aggInsert) {
+    aggInsert.addEventListener("click", () => {
+      const fn = root.querySelector<HTMLSelectElement>("#lw-agg-fn")!.value as AggregateFn;
+      const fieldKey = root.querySelector<HTMLSelectElement>("#lw-agg-field")!.value;
+      if (fn !== "COUNT" && !fieldKey) {
+        state.error = "Pick a numeric field for this total (or choose Count).";
+        render();
+        return;
+      }
+      const format = fn !== "COUNT" ? aggregateFormatFor(fieldKey, numericFields) : undefined;
+      void withBusy("Inserting total…", async () => {
+        await insertScalar(aggregateTag(fn, rel.relationshipName, fieldKey || undefined, format));
+        state.view = { kind: "main" };
+      });
+    });
+  }
+
   root.querySelector("#lw-insert")!.addEventListener("click", () => {
     const picked: MergeFieldDef[] = [];
     root.querySelectorAll<HTMLInputElement>("input[type=checkbox]").forEach((box) => {
@@ -612,6 +682,9 @@ function renderCondWizard(mode: "if" | "inverse"): HTMLElement {
     .map((f) => `<option value="${esc(f.key)}" data-type="${esc(f.type)}">${esc(f.label)}</option>`)
     .join("");
   const isIf = mode === "if";
+  const compoundOn = state.capabilities?.features.compoundConditions !== false;
+  const numericTypes = new Set(["currency", "int", "integer", "double", "long", "percent"]);
+  const typeOf = (key: string): string => fields.find((f) => f.key === key)?.type ?? "string";
   const root = el(`
     <div class="section">
       <div class="section-head">${isIf ? "Conditional content" : "Show when blank"}</div>
@@ -632,6 +705,26 @@ function renderCondWizard(mode: "if" | "inverse"): HTMLElement {
                  </select>
                </label>
                <label>Value <input type="text" id="cw-value" placeholder="e.g. 50000 or Closed Won" /></label>
+               ${
+                 compoundOn
+                   ? `<label>Add another condition
+                        <select id="cw-conn">
+                          <option value="">— none —</option>
+                          <option value="AND">AND</option>
+                          <option value="OR">OR</option>
+                        </select>
+                      </label>
+                      <label>Field 2 <select id="cw-field2"><option value=""></option>${fieldOptions}</select></label>
+                      <label>Operator 2
+                        <select id="cw-op2">
+                          <option value="=">=</option><option value="!=">≠</option>
+                          <option value=">">&gt;</option><option value="<">&lt;</option>
+                          <option value=">=">≥</option><option value="<=">≤</option>
+                        </select>
+                      </label>
+                      <label>Value 2 <input type="text" id="cw-value2" placeholder="optional second value" /></label>`
+                   : ""
+               }
                <label class="check"><input type="checkbox" id="cw-else" /> Include an otherwise (else) branch</label>`
             : ""
         }
@@ -661,20 +754,86 @@ function renderCondWizard(mode: "if" | "inverse"): HTMLElement {
       render();
       return;
     }
-    const fieldType = fieldSel.selectedOptions[0]?.dataset.type ?? "string";
-    const numericTypes = new Set(["currency", "int", "double", "percent"]);
-    void withBusy("Inserting…", async () => {
-      await insertConditional({
-        fieldKey,
-        operator: op,
-        value,
-        quoteValue: !numericTypes.has(fieldType),
-        withElse: root.querySelector<HTMLInputElement>("#cw-else")!.checked,
+    const withElse = root.querySelector<HTMLInputElement>("#cw-else")!.checked;
+    const clause1: ConditionClause = {
+      fieldKey,
+      operator: op,
+      value,
+      quoteValue: !numericTypes.has(typeOf(fieldKey)),
+    };
+
+    // Optional second clause → compound AND/OR condition.
+    const connector = root.querySelector<HTMLSelectElement>("#cw-conn")?.value;
+    const field2 = root.querySelector<HTMLSelectElement>("#cw-field2")?.value ?? "";
+    const value2 = root.querySelector<HTMLInputElement>("#cw-value2")?.value.trim() ?? "";
+    if (connector && field2 && value2) {
+      const op2 = root.querySelector<HTMLSelectElement>("#cw-op2")!.value as
+        | "=" | "!=" | ">" | "<" | ">=" | "<=";
+      const clause2: ConditionClause = {
+        fieldKey: field2,
+        operator: op2,
+        value: value2,
+        quoteValue: !numericTypes.has(typeOf(field2)),
+      };
+      const { open, elseTag, close } = compoundConditionTags(
+        [clause1, clause2],
+        connector as "AND" | "OR",
+        withElse,
+      );
+      void withBusy("Inserting…", async () => {
+        await insertConditionalTags(open, elseTag, close);
+        state.view = { kind: "main" };
       });
+      return;
+    }
+
+    void withBusy("Inserting…", async () => {
+      await insertConditional({ ...clause1, withElse });
       state.view = { kind: "main" };
     });
   });
   root.querySelector("#cw-cancel")!.addEventListener("click", () => {
+    state.view = { kind: "main" };
+    render();
+  });
+  return root;
+}
+
+// ---------- image wizard ----------
+
+function renderImageWizard(): HTMLElement {
+  const fields = state.discover?.rootScalarMergeFields ?? [];
+  const fieldOptions = fields
+    .map((f) => `<option value="${esc(f.key)}">${esc(f.label)}</option>`)
+    .join("");
+  const root = el(`
+    <div class="section">
+      <div class="section-head">Insert image</div>
+      <div class="form">
+        <p class="hint">Pick a field whose value is a Salesforce File (ContentVersion/ContentDocument Id).
+        The image is embedded into the document at generation time.</p>
+        <label>Image field <select id="iw-field">${fieldOptions}</select></label>
+        <div class="btn-row">
+          <label>Width px <input type="text" id="iw-w" placeholder="200" style="width:70px" /></label>
+          <label>Height px <input type="text" id="iw-h" placeholder="120" style="width:70px" /></label>
+        </div>
+        <div class="btn-row">
+          <button class="btn primary" id="iw-insert">Insert image</button>
+          <button class="btn secondary" id="iw-cancel">Cancel</button>
+        </div>
+      </div>
+    </div>`);
+  root.querySelector("#iw-insert")!.addEventListener("click", () => {
+    const fieldKey = root.querySelector<HTMLSelectElement>("#iw-field")!.value;
+    if (!fieldKey) return;
+    const w = Number(root.querySelector<HTMLInputElement>("#iw-w")!.value) || undefined;
+    const h = Number(root.querySelector<HTMLInputElement>("#iw-h")!.value) || undefined;
+    void withBusy("Inserting image…", async () => {
+      await insertScalar(imageTag(fieldKey, w, h));
+      state.view = { kind: "main" };
+    });
+  });
+  root.querySelector("#iw-cancel")!.addEventListener("click", () => {
     state.view = { kind: "main" };
     render();
   });

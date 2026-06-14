@@ -44,6 +44,63 @@ export function loopTags(relationshipName: string): { open: string; close: strin
   return { open: `{{#${relationshipName}}}`, close: `{{/${relationshipName}}}` };
 }
 
+export type AggregateFn = "SUM" | "COUNT" | "AVG" | "MIN" | "MAX";
+
+/**
+ * Aggregate tag: {{COUNT:Rel}} or {{SUM:Rel.Field}} with optional format.
+ * Field is omitted for COUNT (and ignored if passed).
+ */
+export function aggregateTag(
+  fn: AggregateFn,
+  relationshipName: string,
+  fieldApiName?: string,
+  format?: string,
+): string {
+  const body =
+    fn === "COUNT" ? `COUNT:${relationshipName}` : `${fn}:${relationshipName}.${fieldApiName}`;
+  return format ? `{{${body}:${format}}}` : `{{${body}}}`;
+}
+
+/** Image merge field: {{%Field}} or {{%Field:WxH}} (pixels). */
+export function imageTag(fieldKey: string, widthPx?: number, heightPx?: number): string {
+  if (widthPx && heightPx) {
+    return `{{%${fieldKey}:${widthPx}x${heightPx}}}`;
+  }
+  return `{{%${fieldKey}}}`;
+}
+
+/** One comparison clause of a compound condition. */
+export interface ConditionClause {
+  fieldKey: string;
+  operator: "=" | "!=" | ">" | "<" | ">=" | "<=";
+  value: string;
+  quoteValue: boolean;
+}
+
+/**
+ * Compound conditional: clauses joined by a single AND/OR connector.
+ * Engine supports nested AND/OR/NOT; the wizard exposes one connector for
+ * simplicity. Returns the same open/elseTag/close shape as conditionalTags.
+ */
+export function compoundConditionTags(
+  clauses: ConditionClause[],
+  connector: "AND" | "OR",
+  withElse: boolean,
+): { open: string; elseTag?: string; close: string } {
+  if (clauses.length === 0) throw new Error("A condition needs at least one clause.");
+  const expr = clauses
+    .map((c) => {
+      const v = c.quoteValue ? `'${c.value.replace(/'/g, "")}'` : c.value;
+      return `${c.fieldKey} ${c.operator} ${v}`;
+    })
+    .join(` ${connector} `);
+  return {
+    open: `{{#if ${expr}}}`,
+    elseTag: withElse ? "{{:else}}" : undefined,
+    close: "{{/if}}",
+  };
+}
+
 /**
  * Default format suffix for a Salesforce field type, or undefined when raw
  * output is right. Keys are lowercase Salesforce display types as delivered
@@ -61,6 +118,10 @@ export function defaultFormatForType(sfType: string): string | undefined {
       return "MM/dd/yyyy h:mm a";
     case "boolean":
       return "checkbox";
+    case "picklist":
+    case "multipicklist":
+      // Render the user-facing label, not the stored API value.
+      return "label";
     default:
       return undefined;
   }

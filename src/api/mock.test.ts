@@ -39,6 +39,14 @@ describe("classifyTag", () => {
     );
   });
 
+  it("classifies aggregate and image tags as resolvable", () => {
+    expect(classifyTag("SUM:Opportunities.Amount", RESOLVABLE).status).toBe("Resolved");
+    expect(classifyTag("COUNT:Contacts", RESOLVABLE).status).toBe("Resolved");
+    expect(classifyTag("%Account.Name", RESOLVABLE).status).toBe("Resolved");
+    expect(classifyTag("%Account.Name:200x60", RESOLVABLE).status).toBe("Resolved");
+    expect(classifyTag("%Account.Nope", RESOLVABLE).status).toBe("Unresolved");
+  });
+
   it("classifies structural tags", () => {
     for (const inner of [
       "#Contacts",

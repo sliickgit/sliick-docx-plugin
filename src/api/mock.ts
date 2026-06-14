@@ -133,10 +133,12 @@ const CAPABILITIES: CapabilitiesResponse = {
   features: {
     conditionals: true,
     inverseConditionals: true,
+    compoundConditions: true,
     childLoops: true,
-    nestedLoops: false,
-    aggregates: false,
-    imageFields: false,
+    nestedLoops: true,
+    aggregates: true,
+    picklistLabels: true,
+    imageFields: true,
     barcodes: false,
     signatureTags: false,
     pdfOutput: false,
@@ -158,7 +160,8 @@ function knownKeys(d: DiscoverResponse): Set<string> {
   return keys;
 }
 
-const STRUCTURAL = /^(#if\s|:else$|\/if$|\^|#|\/)/;
+const STRUCTURAL = /^(#if\s|#if$|:else$|\/if$|\^|#|\/|@)/;
+const AGGREGATE = /^(SUM|COUNT|AVG|MIN|MAX):/i;
 
 /**
  * Classifies the inner text of one {{...}} tag the way the backend validator
@@ -170,7 +173,14 @@ export function classifyTag(inner: string, resolvable: Set<string>): TagCatalogE
   if (STRUCTURAL.test(trimmed)) {
     return { tag, status: "Structural" };
   }
-  const fieldPart = trimmed.split(":")[0] ?? trimmed; // strip format suffix
+  if (AGGREGATE.test(trimmed)) {
+    // Mock accepts any well-formed aggregate; the backend validates the rel/field.
+    return { tag, status: "Resolved" };
+  }
+  // Image fields ({{%Field}} / {{%Field:WxH}}) resolve like a scalar field.
+  const isImage = trimmed.startsWith("%");
+  const core = isImage ? trimmed.slice(1) : trimmed;
+  const fieldPart = core.split(":")[0] ?? core; // strip format / size suffix
   if (resolvable.has(fieldPart)) {
     return { tag, status: "Resolved" };
   }

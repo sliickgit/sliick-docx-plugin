@@ -56,6 +56,20 @@ export async function insertInverse(fieldKey: string): Promise<void> {
   await wrapSelection(open, close);
 }
 
+/** Wrap the selection with already-built conditional tags (e.g. compound if). */
+export async function insertConditionalTags(
+  open: string,
+  elseTag: string | undefined,
+  close: string,
+): Promise<void> {
+  await wrapSelection(open, elseTag ? `${elseTag}otherwise…${close}` : close);
+}
+
+/** Insert an image merge tag at the cursor. */
+export async function insertImage(tagText: string): Promise<void> {
+  await insertScalar(tagText);
+}
+
 /**
  * Wraps the current selection with open/close tag text. With a collapsed
  * cursor, inserts `open` + placeholder + `close` and selects the placeholder
