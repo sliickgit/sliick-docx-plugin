@@ -18,9 +18,17 @@ export interface AddinSettings {
 
 const STORAGE_KEY = "sliick.settings.v1";
 
+/**
+ * Shared Sliick External Client App consumer key (public client — not a secret;
+ * safe to ship in the bundle). Pre-fills the Settings field so users only need
+ * to supply their org URL.
+ */
+const SLIICK_CLIENT_ID =
+  "3MVG9QJ.PEcCek9ZS2UpB7gXr_1tcAtTAMfQHj0OfVWZ.BChmARUuQ4.cuY1QXbgONr_6IYt1zrcSOwiHlhcx";
+
 export const DEFAULT_SETTINGS: AddinSettings = {
   orgUrl: "",
-  clientId: "",
+  clientId: SLIICK_CLIENT_ID,
   mockMode: true,
 };
 
@@ -31,7 +39,10 @@ export function loadSettings(): AddinSettings {
     const parsed = JSON.parse(raw) as Partial<AddinSettings>;
     return {
       orgUrl: typeof parsed.orgUrl === "string" ? parsed.orgUrl : "",
-      clientId: typeof parsed.clientId === "string" ? parsed.clientId : "",
+      clientId:
+        typeof parsed.clientId === "string" && parsed.clientId.trim() !== ""
+          ? parsed.clientId
+          : SLIICK_CLIENT_ID,
       mockMode: parsed.mockMode !== false,
     };
   } catch {

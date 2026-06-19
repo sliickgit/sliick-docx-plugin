@@ -77,7 +77,13 @@ export async function login(orgUrl: string, clientId: string): Promise<TokenSet>
     state,
   });
 
-  const message = await openAuthDialog(authorizeUrl);
+  // Office's dialog only permits opening a URL on our own domain. The per-org
+  // Salesforce authorize domain can't be enumerated in AppDomains, so we open a
+  // same-origin bootstrap page that redirects to the authorize URL (see
+  // auth-start.html / start.ts). AppDomains governs only the initial dialog URL.
+  const dialogUrl = `${window.location.origin}/auth-start?u=${encodeURIComponent(authorizeUrl)}`;
+
+  const message = await openAuthDialog(dialogUrl);
   if (message.error) {
     throw new Error(
       `Salesforce login failed: ${message.error} ${message.errorDescription ?? ""}`.trim(),

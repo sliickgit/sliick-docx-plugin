@@ -366,10 +366,6 @@ function renderSettings(): HTMLElement {
           <input type="url" id="set-org" placeholder="https://yourdomain.my.salesforce.com"
                  value="${esc(s.orgUrl)}" ${s.mockMode ? "disabled" : ""} />
         </label>
-        <label>External Client App consumer key
-          <input type="text" id="set-client" placeholder="3MVG9…"
-                 value="${esc(s.clientId)}" ${s.mockMode ? "disabled" : ""} />
-        </label>
         <div class="btn-row">
           <button class="btn primary" id="set-save">Save</button>
           <button class="btn secondary" id="set-cancel">Cancel</button>
@@ -381,10 +377,8 @@ function renderSettings(): HTMLElement {
 
   const mockBox = root.querySelector<HTMLInputElement>("#set-mock")!;
   const orgInput = root.querySelector<HTMLInputElement>("#set-org")!;
-  const clientInput = root.querySelector<HTMLInputElement>("#set-client")!;
   mockBox.addEventListener("change", () => {
     orgInput.disabled = mockBox.checked;
-    clientInput.disabled = mockBox.checked;
   });
 
   root.querySelector("#set-save")!.addEventListener("click", () => {
@@ -398,13 +392,10 @@ function renderSettings(): HTMLElement {
         return;
       }
       orgUrl = normalized;
-      if (!clientInput.value.trim()) {
-        state.error = "Consumer key is required to connect to Salesforce.";
-        render();
-        return;
-      }
     }
-    state.settings = { mockMode, orgUrl, clientId: clientInput.value.trim() };
+    // clientId is a fixed global ECA consumer key baked into the bundle
+    // (see DEFAULT_SETTINGS); not user-editable.
+    state.settings = { mockMode, orgUrl, clientId: state.settings.clientId };
     saveSettings(state.settings);
     void initApi();
   });
@@ -428,7 +419,7 @@ function renderConnect(): HTMLElement {
           configured
             ? `<p class="hint">Sign in to <b>${esc(state.settings.orgUrl)}</b> to load your org's merge fields.</p>
                <button class="btn primary" id="btn-login">Sign in to Salesforce</button>`
-            : `<p class="hint">Set your org URL and consumer key in Settings (⚙) first — or switch on Demo mode to explore with sample data.</p>`
+            : `<p class="hint">Set your org URL in Settings (⚙) first — or switch on Demo mode to explore with sample data.</p>`
         }
       </div>
     </div>`);

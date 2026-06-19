@@ -29,7 +29,9 @@ body {
 /* ---------- header ---------- */
 .header {
   display: flex; align-items: center; gap: 8px;
-  padding: 10px 12px;
+  /* Extra right padding keeps our ⚙ button clear of Office's own task-pane
+     chrome (the info/overflow menu Office injects at the top-right corner). */
+  padding: 10px 40px 10px 12px;
   background: var(--brand); color: #fff;
 }
 .header .title { font-weight: 600; flex: 1; }
