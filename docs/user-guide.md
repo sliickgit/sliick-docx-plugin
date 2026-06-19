@@ -27,6 +27,7 @@ This guide is for the person authoring templates. No coding required.
 13. [What's supported (and what isn't yet)](#13-whats-supported-and-what-isnt-yet)
 14. [Troubleshooting](#14-troubleshooting)
 15. [Merge tag cheat sheet](#15-merge-tag-cheat-sheet)
+16. [Appendix A — Admin setup: connect your org](#appendix-a--admin-setup-connect-your-org)
 
 ---
 
@@ -80,9 +81,11 @@ To work with your real org:
 2. Untick **Demo mode**.
 3. Enter your **Salesforce org URL** (your My Domain address, e.g.
    `https://yourcompany.my.salesforce.com`).
-4. Enter the **External Client App consumer key**. Your Salesforce admin
-   provides this — in Salesforce it's under **Setup → External Client Apps →
-   Sliick Office Add-in**.
+4. **External Client App consumer key (optional).** If your admin set up a
+   dedicated External Client App for your org, paste its consumer key here.
+   Otherwise **leave it blank** to use the shared Sliick app. (Your admin
+   provides the key if your org uses its own — see
+   [Appendix A](#appendix-a--admin-setup-connect-your-org).)
 5. Click **Save**, then **Sign in to Salesforce**.
 
 A Salesforce login window opens. Sign in as you normally would and approve
@@ -91,6 +94,11 @@ between sessions; use **Sign out** in Settings to disconnect.
 
 > Everything the add-in shows you respects your Salesforce permissions. You only
 > see objects and fields you already have access to.
+
+> **Admin?** Before authors can connect, the **Sliick Docs managed package**
+> must be installed in the org. If you want your org to use its **own** External
+> Client App (instead of the shared Sliick app), create it once — full steps in
+> [Appendix A](#appendix-a--admin-setup-connect-your-org).
 
 ---
 
@@ -377,3 +385,84 @@ Inside a repeating table, child fields are written **without** the object name �
 `{{FirstName}}`, not `{{Contact.FirstName}}`. The same applies to fields and
 totals inside a nested loop. Totals (`SUM`/`COUNT`/…) go **outside** the table,
 and string values in conditions use **single quotes**.
+
+---
+
+## Appendix A — Admin setup: connect your org
+
+This appendix is for **Salesforce admins**. Template authors don't need it —
+they only enter the org URL (and, optionally, a consumer key) as in
+[Section 3](#3-connecting-to-salesforce).
+
+Connecting an org takes two steps. The first is required; the second is optional.
+
+### A.1 Install the Sliick Docs managed package (required)
+
+The add-in reads merge fields and saves templates through Sliick Docs' API,
+which lives in the **Sliick Docs managed package**. Installing it also adds
+`https://office.sliick.com` to your org's **CORS allowlist** so the add-in's
+browser requests are accepted. Without the package installed, the add-in can't
+load your fields.
+
+### A.2 Choose how authors authenticate
+
+The add-in signs in with OAuth (PKCE). You have two options:
+
+| Option | What authors enter | When to use it |
+| --- | --- | --- |
+| **Shared Sliick app** | org URL only (leave the key blank) | quickest; fine for most orgs |
+| **Your own External Client App** | org URL + **your** consumer key | you want the connected app to appear under your own org's control, with your own OAuth policies |
+
+If the shared app works for you, you're done — authors just leave the consumer
+key blank. To use your own app, create it as below.
+
+### A.3 Create your own External Client App (optional)
+
+In **Setup**, open **External Client App Manager → New External Client App**
+(older orgs: **App Manager → New Connected App**). Configure:
+
+- **Basic information**
+  - **Name:** `Sliick Office Add-in` (anything you like)
+  - **Contact email:** your admin email
+  - **Distribution state:** **Local**
+- **OAuth settings → Enable OAuth**
+  - **Callback URL:**
+    ```
+    https://office.sliick.com/auth-callback.html
+    ```
+  - **OAuth scopes** (add all three):
+    - *Manage user data via APIs* (`api`)
+    - *Perform requests at any time* (`refresh_token`, `offline_access`)
+    - *Access the identity URL service* (`openid`)
+  - **Require Proof Key for Code Exchange (PKCE):** **ON**
+  - **Require secret for Web Server Flow:** **OFF**
+  - **Require secret for Refresh Token Flow:** **OFF**
+
+  > The "Require secret…" boxes are off because the add-in is a **public
+  > client** — it runs in the browser and holds no secret. PKCE secures the flow.
+
+- **Save.** Salesforce generates a **Consumer Key**. You'll hand this to authors.
+
+### A.4 Set the OAuth policies
+
+After saving, open the app's **OAuth Policies** (Edit Policies) and set:
+
+- **IP Relaxation:** **Relax IP restrictions.**
+
+  > The add-in completes the OAuth token exchange from Sliick's secure hosted
+  > service, so the request doesn't come from the author's own IP address.
+  > "Enforce" would reject it with *"ip restricted by app developer."* Security
+  > is still enforced by PKCE and the standard Salesforce login.
+
+- **Permitted Users:** choose **Admin approved users are pre-authorized** (then
+  assign a permission set / profile to the authors who should connect) or
+  **All users may self-authorize**, per your org's policy.
+
+### A.5 Give authors the consumer key
+
+Copy the **Consumer Key** from your External Client App and share it with your
+template authors. In the add-in they open **Settings (⚙)**, untick **Demo
+mode**, enter the **org URL**, paste the **consumer key**, and **Sign in**.
+
+> The consumer key is a public client identifier, not a secret — it's safe to
+> share with your authors.

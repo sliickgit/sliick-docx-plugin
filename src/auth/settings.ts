@@ -16,26 +16,33 @@ export interface AddinSettings {
   mockMode: boolean;
 }
 
-// Bumped v1 -> v2 to discard any saved settings that pinned the old prod
-// consumer key, so the current default (scratch test ECA) takes effect.
-const STORAGE_KEY = "sliick.settings.v2";
+// Bumped to v3 for the per-customer ECA model: each customer creates their own
+// local External Client App and enters its consumer key, so any previously
+// saved (shared/baked) key must be discarded.
+const STORAGE_KEY = "sliick.settings.v3";
 
 /**
- * Shared Sliick External Client App consumer key (public client — not a secret;
- * safe to ship in the bundle). Pre-fills the Settings field so users only need
- * to supply their org URL.
- *
- * This is the production packaged ECA (Sliick_Docs_Integration). For testing
- * against a scratch/dev org, temporarily swap in that org's local ECA key.
+ * Shared Sliick global ECA consumer key (public client — not a secret). Used as
+ * a fallback when a customer leaves the Settings consumer-key field blank, so
+ * the add-in supports both models:
+ *   - customer creates their own local ECA and pastes its key, or
+ *   - customer leaves it blank and uses the shared Sliick app.
  */
-const SLIICK_CLIENT_ID =
+const SLIICK_GLOBAL_CLIENT_ID =
   "3MVG9QJ.PEcCek9ZS2UpB7gXr_1tcAtTAMfQHj0OfVWZ.BChmARUuQ4.cuY1QXbgONr_6IYt1zrcSOwiHlhcx";
 
+// clientId defaults to blank so the field starts empty; effectiveClientId()
+// falls back to the shared key when the customer doesn't supply their own.
 export const DEFAULT_SETTINGS: AddinSettings = {
   orgUrl: "",
-  clientId: SLIICK_CLIENT_ID,
+  clientId: "",
   mockMode: true,
 };
+
+/** The consumer key to actually use for OAuth: the customer's, or the shared fallback. */
+export function effectiveClientId(settings: AddinSettings): string {
+  return settings.clientId.trim() || SLIICK_GLOBAL_CLIENT_ID;
+}
 
 export function loadSettings(): AddinSettings {
   try {
@@ -44,10 +51,7 @@ export function loadSettings(): AddinSettings {
     const parsed = JSON.parse(raw) as Partial<AddinSettings>;
     return {
       orgUrl: typeof parsed.orgUrl === "string" ? parsed.orgUrl : "",
-      clientId:
-        typeof parsed.clientId === "string" && parsed.clientId.trim() !== ""
-          ? parsed.clientId
-          : SLIICK_CLIENT_ID,
+      clientId: typeof parsed.clientId === "string" ? parsed.clientId : "",
       mockMode: parsed.mockMode !== false,
     };
   } catch {
