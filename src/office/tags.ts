@@ -106,8 +106,8 @@ export function compoundConditionTags(
  * output is right. Keys are lowercase Salesforce display types as delivered
  * by the discover endpoint.
  */
-export function defaultFormatForType(sfType: string): string | undefined {
-  switch (sfType.toLowerCase()) {
+export function defaultFormatForType(sfType?: string): string | undefined {
+  switch ((sfType ?? "").toLowerCase()) {
     case "currency":
       return "currency";
     case "percent":

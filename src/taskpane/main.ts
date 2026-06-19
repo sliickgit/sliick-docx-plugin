@@ -279,8 +279,8 @@ function el(html: string): HTMLElement {
   return t.content.firstElementChild as HTMLElement;
 }
 
-function esc(s: string): string {
-  return s
+function esc(s: string | null | undefined): string {
+  return String(s ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -590,7 +590,7 @@ function renderLoopWizard(rel: ChildRelationshipDef, childFields: MergeFieldDef[
     )
     .join("");
   const numericFields = childFields.filter((f) =>
-    ["currency", "double", "int", "integer", "percent", "long"].includes(f.type.toLowerCase()),
+    ["currency", "double", "int", "integer", "percent", "long"].includes((f.type ?? "").toLowerCase()),
   );
   const aggFieldOptions = numericFields
     .map((f) => `<option value="${esc(inLoopFieldKey(f.key))}">${esc(f.label)}</option>`)

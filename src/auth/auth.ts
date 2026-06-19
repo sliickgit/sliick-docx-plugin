@@ -6,8 +6,10 @@
  *     (Office.context.ui.displayDialogAsync) with a PKCE challenge.
  *  2. Salesforce redirects to our hosted auth-callback.html, which posts the
  *     ?code & state back via Office.context.ui.messageParent.
- *  3. The task pane exchanges the code (+ verifier) for tokens directly against
- *     /services/oauth2/token (CORS-permitted for the allowlisted origin).
+ *  3. The task pane exchanges the code (+ verifier) for tokens via our same-origin
+ *     Worker route /api/token, which proxies to /services/oauth2/token. The
+ *     OAuth endpoints do NOT send CORS headers, so the exchange can't run in the
+ *     browser directly — only the Apex REST data calls can.
  *
  * Access token lives in sessionStorage (cleared when Office closes the pane);
  * refresh token in localStorage so reopening Word doesn't force a re-login.
@@ -178,7 +180,10 @@ export async function refreshAccessToken(
 }
 
 async function tokenRequest(orgUrl: string, body: URLSearchParams): Promise<TokenSet> {
-  const resp = await fetch(`${orgUrl}/services/oauth2/token`, {
+  // Salesforce's /services/oauth2/token endpoint does not send CORS headers, so
+  // the browser cannot call it directly. We POST same-origin to our Worker
+  // (/api/token), which forwards the exchange to the org server-side.
+  const resp = await fetch(`/api/token?org=${encodeURIComponent(orgUrl)}`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: body.toString(),

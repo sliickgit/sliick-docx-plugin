@@ -24,8 +24,12 @@ export interface MergeFieldDef {
   /** e.g. "Account.Name", "Account.Owner.Email", "RunningUser.Name", "Today" */
   key: string;
   label: string;
-  /** Salesforce display type, lowercase: string, currency, date, datetime, boolean, picklist, ... */
-  type: string;
+  /**
+   * Salesforce display type, lowercase: string, currency, date, datetime,
+   * boolean, picklist, ... Optional: the live `discover` endpoint may omit it,
+   * in which case no default tag format is applied.
+   */
+  type?: string;
 }
 
 export interface ChildRelationshipDef {

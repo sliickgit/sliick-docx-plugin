@@ -16,12 +16,17 @@ export interface AddinSettings {
   mockMode: boolean;
 }
 
-const STORAGE_KEY = "sliick.settings.v1";
+// Bumped v1 -> v2 to discard any saved settings that pinned the old prod
+// consumer key, so the current default (scratch test ECA) takes effect.
+const STORAGE_KEY = "sliick.settings.v2";
 
 /**
  * Shared Sliick External Client App consumer key (public client — not a secret;
  * safe to ship in the bundle). Pre-fills the Settings field so users only need
  * to supply their org URL.
+ *
+ * This is the production packaged ECA (Sliick_Docs_Integration). For testing
+ * against a scratch/dev org, temporarily swap in that org's local ECA key.
  */
 const SLIICK_CLIENT_ID =
   "3MVG9QJ.PEcCek9ZS2UpB7gXr_1tcAtTAMfQHj0OfVWZ.BChmARUuQ4.cuY1QXbgONr_6IYt1zrcSOwiHlhcx";

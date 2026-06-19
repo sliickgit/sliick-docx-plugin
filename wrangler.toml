@@ -1,0 +1,16 @@
+# Cloudflare Worker (Static Assets) for the Sliick Docs Office add-in.
+#
+# Serves the Vite build (./dist) as static assets and handles the server-side
+# OAuth token exchange at /api/token (Salesforce's /services/oauth2/* endpoints
+# do NOT support browser CORS, so the exchange must happen server-side).
+name = "sliick-office-addin"
+main = "worker/index.ts"
+compatibility_date = "2025-01-01"
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+# Match the previous Pages behavior: /taskpane.html -> 308 -> /taskpane (200).
+# The manifest + auth dialog point at the extensionless URLs.
+html_handling = "auto-trailing-slash"
+not_found_handling = "none"
