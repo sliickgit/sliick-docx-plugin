@@ -367,10 +367,10 @@ function renderSettings(): HTMLElement {
           <input type="url" id="set-org" placeholder="https://yourdomain.my.salesforce.com"
                  value="${esc(s.orgUrl)}" ${s.mockMode ? "disabled" : ""} />
         </label>
-        <label>External Client App consumer key (optional)
+        <label>External Client App consumer key
           <input type="text" id="set-client" placeholder="3MVG9…"
                  value="${esc(s.clientId)}" ${s.mockMode ? "disabled" : ""} />
-          <span class="hint">Paste your own Local External Client App's consumer key, or leave blank to use the shared Sliick app.</span>
+          <span class="hint">Create a Local External Client App in your org and paste its consumer key here — see the setup guide.</span>
         </label>
         <div class="btn-row">
           <button class="btn primary" id="set-save">Save</button>

@@ -81,11 +81,9 @@ To work with your real org:
 2. Untick **Demo mode**.
 3. Enter your **Salesforce org URL** (your My Domain address, e.g.
    `https://yourcompany.my.salesforce.com`).
-4. **External Client App consumer key (optional).** If your admin set up a
-   dedicated External Client App for your org, paste its consumer key here.
-   Otherwise **leave it blank** to use the shared Sliick app. (Your admin
-   provides the key if your org uses its own — see
-   [Appendix A](#appendix-a--admin-setup-connect-your-org).)
+4. Enter the **External Client App consumer key** — your Salesforce admin
+   provides this from your org's External Client App (see
+   [Appendix A](#appendix-a--admin-setup-connect-your-org)).
 5. Click **Save**, then **Sign in to Salesforce**.
 
 A Salesforce login window opens. Sign in as you normally would and approve
@@ -95,9 +93,9 @@ between sessions; use **Sign out** in Settings to disconnect.
 > Everything the add-in shows you respects your Salesforce permissions. You only
 > see objects and fields you already have access to.
 
-> **Admin?** Before authors can connect, the **Sliick Docs managed package**
-> must be installed in the org. If you want your org to use its **own** External
-> Client App (instead of the shared Sliick app), create it once — full steps in
+> **Admin?** A one-time org setup is required before authors can connect:
+> install the managed package, enable CORS for OAuth endpoints, and create your
+> org's External Client App — full steps in
 > [Appendix A](#appendix-a--admin-setup-connect-your-org).
 
 ---
@@ -396,6 +394,10 @@ they only enter the org URL (and, optionally, a consumer key) as in
 
 Connecting an org takes two steps. The first is required; the second is optional.
 
+Each org connects with **its own External Client App** — you create it once, and
+your authors enter its consumer key. There are three one-time steps: install the
+package, enable CORS for the OAuth endpoints, and create the External Client App.
+
 ### A.1 Install the Sliick Docs managed package (required)
 
 The add-in reads merge fields and saves templates through Sliick Docs' API,
@@ -404,19 +406,15 @@ which lives in the **Sliick Docs managed package**. Installing it also adds
 browser requests are accepted. Without the package installed, the add-in can't
 load your fields.
 
-### A.2 Choose how authors authenticate
+### A.2 Enable CORS for OAuth endpoints (required)
 
-The add-in signs in with OAuth (PKCE). You have two options:
+The add-in signs in directly from the browser, so the org must allow the OAuth
+endpoints to respond to it. In **Setup → CORS**, turn on **"Enable CORS for
+OAuth endpoints."** (The package already put `office.sliick.com` on the CORS
+allowlist; this setting lets the sign-in/token endpoints use it.) Without this,
+sign-in fails to complete.
 
-| Option | What authors enter | When to use it |
-| --- | --- | --- |
-| **Shared Sliick app** | org URL only (leave the key blank) | quickest; fine for most orgs |
-| **Your own External Client App** | org URL + **your** consumer key | you want the connected app to appear under your own org's control, with your own OAuth policies |
-
-If the shared app works for you, you're done — authors just leave the consumer
-key blank. To use your own app, create it as below.
-
-### A.3 Create your own External Client App (optional)
+### A.3 Create your org's External Client App (required)
 
 In **Setup**, open **External Client App Manager → New External Client App**
 (older orgs: **App Manager → New Connected App**). Configure:
@@ -447,12 +445,16 @@ In **Setup**, open **External Client App Manager → New External Client App**
 
 After saving, open the app's **OAuth Policies** (Edit Policies) and set:
 
-- **IP Relaxation:** **Relax IP restrictions.**
+- **IP Relaxation:** **Relax IP restrictions.** Also leave the **Refresh Token
+  IP Allowlist** / IP-enforcement options **off** for this app.
 
-  > The add-in completes the OAuth token exchange from Sliick's secure hosted
-  > service, so the request doesn't come from the author's own IP address.
-  > "Enforce" would reject it with *"ip restricted by app developer."* Security
-  > is still enforced by PKCE and the standard Salesforce login.
+  > Authors sign in from wherever they work (home, mobile, office), so the OAuth
+  > token grant comes from an arbitrary IP. With "Enforce," Salesforce can't
+  > challenge a token grant for device verification, so it hard-blocks it with
+  > *"ip restricted by app developer."* Relaxing IP for **this app** lets authors
+  > connect from any IP; security is still enforced by PKCE and the standard
+  > Salesforce login. (This is a per-app setting on your own org's app — it does
+  > not change your org-wide login IP policy.)
 
 - **Permitted Users:** choose **Admin approved users are pre-authorized** (then
   assign a permission set / profile to the authors who should connect) or
