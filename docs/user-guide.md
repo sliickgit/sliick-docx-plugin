@@ -114,8 +114,14 @@ between sessions; use **Sign out** in Settings to disconnect.
   - **Running user** — details of whoever generates the document.
   - **Built-ins** — today's date, current date/time.
   - **Related lists (repeating tables)** — child records you can loop over.
-- **Action buttons** — **+ Condition**, **+ If blank**, and **Save to
-  Salesforce**.
+- **Action buttons** — **+ Condition**, **+ If blank**, **+ Image**,
+  **+ Barcode**, **Review tags**, **My templates**, and **Save to Salesforce**.
+- **✨ Insert sample layout** — drops a ready-made example (heading fields, a
+  repeating table over the first related list, and totals) so you can see a
+  working template in one click.
+- **Smart cursor** — put your cursor inside a repeating list and the pane
+  switches to that list's fields; select an existing tag and an **Edit**
+  card appears that reopens it in the matching wizard.
 
 ---
 
@@ -143,6 +149,14 @@ Word can show as text, you can type as a tag.
 **Parent fields** reach across relationships, up to five hops:
 `{{Account.Owner.Email}}` pulls the account owner's email.
 
+**Insert with options (⋯).** Every field row has a **⋯** button that opens an
+options panel: pick a different **format**, choose a **locale** (e.g. German
+formatting — `{{Amount:currency:de_DE}}` renders 1.234,50), set an **"if
+blank, show"** fallback text (`{{Description|No notes on file}}`), and **📌
+pin** the field to the top of the list. Recently used fields also float to a
+**Recent** section automatically. In the search box, **Enter** inserts the top
+match.
+
 ---
 
 ## 6. Inserting a repeating table (related lists)
@@ -162,6 +176,31 @@ generated. So three contacts produce three rows automatically.
 You can restyle the table (borders, shading, widths) like any Word table — just
 don't delete the merge fields in the data row.
 
+**Filter and sort.** The wizard's optional filter section limits which records
+appear (`{{#Opportunities WHERE Opportunities.Amount > 10000}}`) and sorts them
+(`ORDER BY CloseDate DESC`) — pick a field, operator, and value, plus a sort
+field and direction. To change a list's filter later, click its `{{#…}}` tag in
+the document and use the **Edit** card.
+
+**Nested lists (one level).** The same wizard can insert a list inside a list —
+for example each opportunity, then each of its line items. Under **Nested
+related list**, pick the child's own related list, tick the fields for each
+level, and click **Insert nested list**. Each parent gets a heading line
+followed by a **real table** of its child records (the classic grouped-invoice
+layout); the outer `{{#…}}` / `{{/…}}` tags sit on their own paragraphs around
+the table — keep them there.
+
+> **Don't hand-type a nested list inside a table cell.** A `{{#…}}…{{/…}}` pair
+> placed inside one cell of a row that already repeats would duplicate the whole
+> row and blank its other fields, so Save now rejects that shape with a fix-it
+> message. Put the outer repeat on paragraphs around the table instead — the
+> shape the wizard inserts.
+
+**Approval history.** Every object's related lists include **Approval
+History** — a repeating table over the record's approval steps (actor, step
+status, comments, dates). It works like any other related list; totals aren't
+available for it.
+
 ---
 
 ## 7. Showing or hiding content with conditions
@@ -170,9 +209,11 @@ don't delete the merge fields in the data row.
 
 1. Optionally select the text you want to make conditional.
 2. Click **+ Condition**.
-3. Choose a **field**, an **operator** (=, ≠, >, <, ≥, ≤), and a **value**.
-4. Tick **Include an otherwise (else) branch** if you want alternate text when
-   the condition is false.
+3. Choose a **field**, an **operator** (=, ≠, >, <, ≥, ≤, or **contains** for
+   "text appears anywhere in the field"), and a **value**.
+4. Tick **NOT** to invert the test ("show when this is *false*"), and
+   **Include an otherwise (else) branch** if you want alternate text when the
+   condition is false. A second clause can be joined with **AND** / **OR**.
 5. Click **Insert**.
 
 Example: a condition on Annual Revenue `>` `50000` wraps your selected text so
@@ -187,6 +228,22 @@ fallbacks.
 
 ---
 
+## 7b. Barcodes, and checking your tags
+
+**Barcodes / QR codes.** Click **+ Barcode**, pick the field whose value gets
+encoded (an invoice number, a URL), choose Code 128 or QR, and optionally a
+size. The barcode image is generated into the document at merge time
+(`{{*Account.AccountNumber}}`, `{{*Account.Website:qr:150}}`).
+
+**Review tags.** Click **Review tags** any time for an instant check of every
+tag in the document against your org — typos get "did you mean" suggestions,
+fields used in the wrong list scope are flagged, and clicking any row jumps to
+that tag in the document. A **Highlight tags** toggle shades every tag in the
+document while you work (the shading is removed automatically when you save).
+The full server-side validation still runs on save.
+
+---
+
 ## 8. Saving to Salesforce
 
 When your template is ready:
@@ -197,6 +254,12 @@ When your template is ready:
 4. Optionally enter a **Test record Id** — a real record used for Preview
    (see [section 10](#10-previewing-with-real-data)).
 5. Click **Save template**.
+
+**Updating an existing template.** Click **My templates** to see the templates
+already saved for this base object. Pick one and the next save creates a **new
+version** of it instead of a separate template (the save panel says whose
+version you're saving, with a "save as a new template instead" escape hatch).
+After any save, further saves from the same pane keep versioning that template.
 
 The add-in uploads the document and checks every tag against your org. You then
 see the **Save results** panel:
@@ -232,13 +295,14 @@ again. The check re-runs.
 
 ## 10. Previewing with real data
 
-From the Save results panel, click **Preview with test record** to generate the
-document against the test record you set, then download the finished `.docx` and
-open it in Word. This is the fastest way to confirm fields, tables, and
-conditions all behave before anyone else uses the template.
+From the Save results panel, click **Preview** to generate the document against
+real data, then download the finished `.docx` and open it in Word. This is the
+fastest way to confirm fields, tables, and conditions all behave before anyone
+else uses the template.
 
-If you didn't set a test record Id when saving, set one (any record Id of the
-template's base object) and save again.
+The **Preview record Id** box lets you preview against any record of the base
+object — leave it as-is to use the test record you set at save time, or paste a
+different record Id to try another one without re-saving.
 
 > Preview needs a live Salesforce connection — it isn't available in Demo mode.
 
@@ -308,11 +372,13 @@ A few Word habits keep generated documents looking right:
   loops** (e.g. each opportunity, then each of its line items)
 - **Totals** — SUM / COUNT / AVG / MIN / MAX over a related list (insert from
   the repeating-table panel; place the total outside the table)
-- Conditions (if / else), **compound conditions** (two clauses joined by AND/OR),
-  "show when blank", and approval history loops
+- Conditions (if / else) with =, ≠, ordering, **contains**, and **NOT**;
+  **compound conditions** (two clauses joined by AND/OR); "show when blank";
+  and approval history loops
 - **Images** from a field that holds a Salesforce File (the **+ Image** button),
   embedded into the document at generation time, with optional size
-- Save-time validation with suggestions, and preview against a test record
+- Save-time validation with suggestions, preview against any record, and a
+  **template library** for saving new versions of existing templates
 
 **Not in this version:**
 
@@ -347,8 +413,8 @@ One or more tags didn't match. Open the Save results panel, read the per-tag
 status, apply the suggestions, and save again.
 
 **Preview is greyed out.**
-You're in Demo mode, or no test record is set. Connect to Salesforce and set a
-test record Id when saving.
+You're in Demo mode — preview needs a live Salesforce connection. Once
+connected, save and use the Preview record Id box on the Save results panel.
 
 **My table shows only one row in the output.**
 Make sure the repeating fields sit inside a row inserted by the **Related lists**
@@ -376,6 +442,12 @@ quotes**.
 | Total | `{{SUM:OpportunityLineItems.TotalPrice:currency}}` · `{{COUNT:Contacts}}` |
 | Condition | `{{#if Account.AnnualRevenue > 50000}}` … `{{:else}}` … `{{/if}}` |
 | Compound condition | `{{#if Account.AnnualRevenue > 50000 AND Account.Industry = 'Technology'}}` … `{{/if}}` |
+| Contains / NOT | `{{#if Account.Description contains 'priority'}}` · `{{#if NOT (Opportunity.StageName = 'Closed Won')}}` |
+| Filtered / sorted list | `{{#Opportunities WHERE Opportunities.Amount > 10000 ORDER BY CloseDate DESC}}` … `{{/Opportunities}}` |
+| Fallback text | `{{Account.Description\|No notes on file}}` · `{{Amount:currency\|N/A}}` |
+| Locale format | `{{Amount:currency:de_DE}}` · `{{CloseDate:date:fr_FR}}` |
+| Barcode / QR | `{{*Account.AccountNumber}}` · `{{*Account.Website:qr:150}}` |
+| Approval history | `{{#Approvals}}` … `{{ActorName}}` `{{StepStatus}}` … `{{/Approvals}}` |
 | Show when blank | `{{^Account.Description}}` … `{{/Account.Description}}` |
 | Image | `{{%Account.Logo__c}}` · `{{%Account.Logo__c:200x60}}` |
 

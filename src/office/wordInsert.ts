@@ -6,7 +6,13 @@
  * fallback for hand-edits, not the primary path — see plan "Learnings").
  */
 
-import { ConditionalSpec, conditionalTags, inverseTags, loopRowCellTexts } from "./tags";
+import {
+  ConditionalSpec,
+  conditionalTags,
+  inverseTags,
+  LoopModifiers,
+  loopRowCellTexts,
+} from "./tags";
 
 /** Insert a scalar/built-in tag at the cursor (or replacing the selection). */
 export async function insertScalar(tagText: string): Promise<void> {
@@ -26,11 +32,13 @@ export async function insertScalar(tagText: string): Promise<void> {
 export async function insertLoopTable(
   relationshipName: string,
   columns: { inLoopKey: string; label: string }[],
+  modifiers?: LoopModifiers,
 ): Promise<void> {
   const headers = columns.map((c) => c.label);
   const dataRow = loopRowCellTexts(
     relationshipName,
     columns.map((c) => c.inLoopKey),
+    modifiers,
   );
   await Word.run(async (context) => {
     const selection = context.document.getSelection();
@@ -65,9 +73,48 @@ export async function insertConditionalTags(
   await wrapSelection(open, elseTag ? `${elseTag}otherwise…${close}` : close);
 }
 
-/** Insert an image merge tag at the cursor. */
-export async function insertImage(tagText: string): Promise<void> {
-  await insertScalar(tagText);
+/**
+ * Insert the Titan-shape nested loop: outer loop tags on their own
+ * paragraphs wrapping a parent-fields line and a REAL table whose single
+ * data row carries the row-scope inner loop. Engine coverage:
+ * blockLoopWithInnerTableExpandsPerParent (sliick-docs).
+ */
+export async function insertNestedLoopWithTable(
+  outerOpen: string,
+  parentLine: string,
+  headers: string[],
+  dataRow: string[],
+  outerClose: string,
+): Promise<void> {
+  await Word.run(async (context) => {
+    const selection = context.document.getSelection();
+    let anchor = selection.insertParagraph(outerOpen, Word.InsertLocation.after);
+    anchor = anchor.insertParagraph(parentLine, Word.InsertLocation.after);
+    const table = anchor.insertTable(2, headers.length, Word.InsertLocation.after, [
+      headers,
+      dataRow,
+    ]);
+    table.styleBuiltIn = Word.BuiltInStyleName.gridTable1Light;
+    const closePara = table.insertParagraph(outerClose, Word.InsertLocation.after);
+    closePara.getRange(Word.RangeLocation.after).select();
+    await context.sync();
+  });
+}
+
+/**
+ * Insert lines as consecutive paragraphs after the cursor — the shape of a
+ * paragraph-scope (nested) loop block, one tag/content line per paragraph.
+ */
+export async function insertParagraphBlock(lines: string[]): Promise<void> {
+  await Word.run(async (context) => {
+    const selection = context.document.getSelection();
+    let anchor = selection.insertParagraph(lines[0] ?? "", Word.InsertLocation.after);
+    for (const line of lines.slice(1)) {
+      anchor = anchor.insertParagraph(line, Word.InsertLocation.after);
+    }
+    anchor.getRange(Word.RangeLocation.after).select();
+    await context.sync();
+  });
 }
 
 /**
@@ -98,6 +145,81 @@ async function wrapSelection(openText: string, closeText: string): Promise<void>
       selection.getRange(Word.RangeLocation.end).select();
       await context.sync();
     }
+  });
+}
+
+/**
+ * The document text split around the current selection — powers cursor-scope
+ * detection (which loop am I inside?) and edit-in-wizard tag hit-testing.
+ * `docText` is before+selection+after; cursorStart/cursorEnd are the
+ * selection's offsets within it.
+ */
+export async function getSelectionContext(): Promise<{
+  docText: string;
+  cursorStart: number;
+  cursorEnd: number;
+}> {
+  return Word.run(async (context) => {
+    const selection = context.document.getSelection();
+    const body = context.document.body;
+    selection.load("text");
+    const before = body
+      .getRange(Word.RangeLocation.start)
+      .expandTo(selection.getRange(Word.RangeLocation.start));
+    before.load("text");
+    const after = selection
+      .getRange(Word.RangeLocation.end)
+      .expandTo(body.getRange(Word.RangeLocation.end));
+    after.load("text");
+    await context.sync();
+    const beforeText = before.text ?? "";
+    const selectionText = selection.text ?? "";
+    return {
+      docText: beforeText + selectionText + (after.text ?? ""),
+      cursorStart: beforeText.length,
+      cursorEnd: beforeText.length + selectionText.length,
+    };
+  });
+}
+
+/** Selects the nth occurrence of an exact tag text — the tag navigator's jump. */
+export async function selectTagOccurrence(tagText: string, occurrence: number): Promise<void> {
+  await Word.run(async (context) => {
+    const results = context.document.body.search(tagText, { matchCase: true });
+    results.load("items");
+    await context.sync();
+    const hit = results.items[occurrence] ?? results.items[0];
+    if (hit) {
+      hit.select();
+      await context.sync();
+    }
+  });
+}
+
+/**
+ * Applies (color) or clears (null) Word highlighting on every occurrence of
+ * the given tag texts. Authoring aid only — onSave always clears before the
+ * document is captured so shading can never leak into generated output.
+ */
+export async function setTagHighlights(
+  tagTexts: string[],
+  color: string | null,
+): Promise<void> {
+  if (tagTexts.length === 0) return;
+  await Word.run(async (context) => {
+    const collections = tagTexts.map((t) => {
+      const results = context.document.body.search(t, { matchCase: true });
+      results.load("items");
+      return results;
+    });
+    await context.sync();
+    for (const collection of collections) {
+      for (const item of collection.items) {
+        // Office.js accepts null to clear the highlight; the d.ts says string.
+        item.font.highlightColor = color as unknown as string;
+      }
+    }
+    await context.sync();
   });
 }
 

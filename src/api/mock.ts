@@ -1,11 +1,13 @@
 /**
  * MockSliickClient — in-memory implementation of the v1 contract so the add-in
- * is fully demoable in Word before the Salesforce backend ships. Behavior
- * mirrors the documented backend: tag validation statuses, Phase H capability
- * flags (no nested loops / aggregates), simulated latency.
+ * is fully demoable in Word without a Salesforce connection. Behavior mirrors
+ * the shipped backend (1.8.0): tag validation statuses, capability flags
+ * (nested loops + aggregates on; barcodes + signature tags off), simulated
+ * latency.
  */
 
 import { SliickApi } from "./client";
+import { parseTag } from "../office/tagParse";
 import {
   CapabilitiesResponse,
   DiscoverResponse,
@@ -69,6 +71,7 @@ const FIELDS: Record<string, DiscoverResponse> = {
       { relationshipName: "Contacts", childObjectApiName: "Contact", label: "Contacts" },
       { relationshipName: "Opportunities", childObjectApiName: "Opportunity", label: "Opportunities" },
       { relationshipName: "Cases", childObjectApiName: "Case", label: "Cases" },
+      { relationshipName: "Approvals", childObjectApiName: "ProcessInstanceStep", label: "Approval History" },
     ],
   },
   Contact: {
@@ -95,6 +98,7 @@ const FIELDS: Record<string, DiscoverResponse> = {
     ],
     childRelationships: [
       { relationshipName: "Cases", childObjectApiName: "Case", label: "Cases" },
+      { relationshipName: "Approvals", childObjectApiName: "ProcessInstanceStep", label: "Approval History" },
     ],
   },
   Opportunity: {
@@ -123,9 +127,60 @@ const FIELDS: Record<string, DiscoverResponse> = {
         childObjectApiName: "OpportunityLineItem",
         label: "Products (Line Items)",
       },
+      { relationshipName: "Approvals", childObjectApiName: "ProcessInstanceStep", label: "Approval History" },
     ],
   },
+  Case: {
+    baseObjectApiName: "Case",
+    baseObjectLabel: "Case",
+    rootScalarMergeFields: [
+      { key: "Case.CaseNumber", label: "Case Number", type: "string" },
+      { key: "Case.Subject", label: "Subject", type: "string" },
+      { key: "Case.Status", label: "Status", type: "picklist" },
+      { key: "Case.Priority", label: "Priority", type: "picklist" },
+      { key: "Case.CreatedDate", label: "Created Date", type: "datetime" },
+    ],
+    parentLookupMergeFields: [
+      { key: "Case.Account.Name", label: "Account › Name", type: "string" },
+      { key: "Case.Contact.Name", label: "Contact › Name", type: "string" },
+    ],
+    runningUserMergeFields: [
+      { key: "RunningUser.Name", label: "Running User › Name", type: "string" },
+    ],
+    builtInMergeFields: [
+      { key: "Today", label: "Today's Date", type: "date" },
+    ],
+    childRelationships: [],
+  },
+  OpportunityLineItem: {
+    baseObjectApiName: "OpportunityLineItem",
+    baseObjectLabel: "Opportunity Product",
+    rootScalarMergeFields: [
+      { key: "OpportunityLineItem.Name", label: "Product Name", type: "string" },
+      { key: "OpportunityLineItem.Quantity", label: "Quantity", type: "double" },
+      { key: "OpportunityLineItem.UnitPrice", label: "Unit Price", type: "currency" },
+      { key: "OpportunityLineItem.TotalPrice", label: "Total Price", type: "currency" },
+    ],
+    parentLookupMergeFields: [],
+    runningUserMergeFields: [],
+    builtInMergeFields: [],
+    childRelationships: [],
+  },
 };
+
+/**
+ * In-loop field keys for the synthetic Approvals relationship — mirrors
+ * TemplateMergeFieldService.APPROVALS_FIELDS in sliick-docs.
+ */
+const APPROVALS_KEYS = new Set([
+  "ActorName",
+  "ActorTitle",
+  "StepStatus",
+  "Comments",
+  "ActedAt",
+  "ProcessName",
+  "StepName",
+]);
 
 const CAPABILITIES: CapabilitiesResponse = {
   packageVersion: "mock-1.8.0",
@@ -139,9 +194,13 @@ const CAPABILITIES: CapabilitiesResponse = {
     aggregates: true,
     picklistLabels: true,
     imageFields: true,
-    barcodes: false,
+    barcodes: true,
     signatureTags: false,
     pdfOutput: true,
+    // grammar-v2 (mirrors OfficeAddinService.getCapabilities post-5dca571)
+    loopFilters: true,
+    fallbackText: true,
+    localeFormats: true,
   },
   limits: { maxFileMb: 10, maxParentHops: 5, maxParentHopsInRepeat: 1 },
 };
@@ -160,34 +219,41 @@ function knownKeys(d: DiscoverResponse): Set<string> {
   return keys;
 }
 
-const STRUCTURAL = /^(#if\s|#if$|:else$|\/if$|\^|#|\/|@)/;
-const AGGREGATE = /^(SUM|COUNT|AVG|MIN|MAX):/i;
-
 /**
  * Classifies the inner text of one {{...}} tag the way the backend validator
- * documents it. Exported for unit tests.
+ * documents it. Delegates to the shared grammar parser (tagParse), so the
+ * mock understands grammar-v2 forms (loop WHERE/ORDER BY, fallback pipes,
+ * barcodes) exactly like the live engine. Exported for unit tests.
  */
 export function classifyTag(inner: string, resolvable: Set<string>): TagCatalogEntry {
   const tag = `{{${inner}}}`;
-  const trimmed = inner.trim();
-  if (STRUCTURAL.test(trimmed)) {
-    return { tag, status: "Structural" };
+  const parsed = parseTag(inner);
+  switch (parsed.kind) {
+    case "ifOpen":
+    case "elseMarker":
+    case "ifClose":
+    case "inverseOpen":
+    case "loopOpen":
+    case "blockClose":
+    case "signature":
+      return { tag, status: "Structural" };
+    case "aggregate":
+      // Mock accepts any well-formed aggregate; the backend validates the rel/field.
+      return { tag, status: "Resolved" };
+    case "scalar":
+    case "image":
+    case "barcode": {
+      if (resolvable.has(parsed.key)) {
+        return { tag, status: "Resolved" };
+      }
+      const suggestion = closestKey(parsed.key, resolvable);
+      return suggestion
+        ? { tag, status: "Unresolved", suggestion }
+        : { tag, status: "Unresolved" };
+    }
+    default:
+      return { tag, status: "Unresolved" };
   }
-  if (AGGREGATE.test(trimmed)) {
-    // Mock accepts any well-formed aggregate; the backend validates the rel/field.
-    return { tag, status: "Resolved" };
-  }
-  // Image fields ({{%Field}} / {{%Field:WxH}}) resolve like a scalar field.
-  const isImage = trimmed.startsWith("%");
-  const core = isImage ? trimmed.slice(1) : trimmed;
-  const fieldPart = core.split(":")[0] ?? core; // strip format / size suffix
-  if (resolvable.has(fieldPart)) {
-    return { tag, status: "Resolved" };
-  }
-  const suggestion = closestKey(fieldPart, resolvable);
-  return suggestion
-    ? { tag, status: "Unresolved", suggestion }
-    : { tag, status: "Unresolved" };
 }
 
 /** Cheap fuzzy suggestion: case-insensitive match or shared-prefix candidate. */
@@ -227,6 +293,7 @@ export function extractTags(text: string): string[] {
 
 /** In-loop resolvable keys for a child relationship ("FirstName", not "Contact.FirstName"). */
 function inLoopKeys(baseObject: string, relationshipName: string): Set<string> | null {
+  if (relationshipName === "Approvals") return APPROVALS_KEYS;
   const base = FIELDS[baseObject];
   const rel = base?.childRelationships.find(
     (r) => r.relationshipName === relationshipName,
@@ -257,20 +324,31 @@ export function classifyDocumentTags(
   const out: TagCatalogEntry[] = [];
 
   for (const inner of extractTags(text)) {
-    const trimmed = inner.trim();
     const tag = `{{${inner}}}`;
+    const parsed = parseTag(inner);
 
-    if (/^#if\s/.test(trimmed) || trimmed === ":else" || trimmed === "/if" || trimmed.startsWith("^")) {
+    if (
+      parsed.kind === "ifOpen" ||
+      parsed.kind === "elseMarker" ||
+      parsed.kind === "ifClose" ||
+      parsed.kind === "inverseOpen" ||
+      parsed.kind === "signature"
+    ) {
       out.push({ tag, status: "Structural" });
       continue;
     }
-    if (trimmed.startsWith("#")) {
-      loopStack.push(trimmed.slice(1));
+    if (parsed.kind === "loopOpen") {
+      // Relationship name only — WHERE/ORDER BY modifiers don't change scope.
+      loopStack.push(parsed.relationship);
       out.push({ tag, status: "Structural" });
       continue;
     }
-    if (trimmed.startsWith("/")) {
-      loopStack.pop();
+    if (parsed.kind === "blockClose") {
+      // Pop only a matching loop close — {{/Field}} closing an inverse block
+      // must not eject the enclosing loop scope.
+      if (loopStack[loopStack.length - 1] === parsed.target) {
+        loopStack.pop();
+      }
       out.push({ tag, status: "Structural" });
       continue;
     }
@@ -326,8 +404,16 @@ export class MockSliickClient implements SliickApi {
     this.counter += 1;
     const tagCatalog = classifyDocumentTags(this.documentText, req.baseObjectApiName);
     const hasUnresolved = tagCatalog.some((t) => t.status === "Unresolved");
+    // Revise-by-id (new version of an existing template) keeps the templateId;
+    // otherwise fall back to upsert-by-name, matching the backend's behavior.
+    const existing = req.templateId
+      ? this.saved.findIndex((t) => t.templateId === req.templateId)
+      : this.saved.findIndex((t) => t.name === req.name);
+    if (req.templateId && existing < 0) {
+      return Promise.reject(new Error(`Mock has no template ${req.templateId}`));
+    }
     const summary: TemplateSummary = {
-      templateId: `mockT${this.counter}`,
+      templateId: existing >= 0 ? this.saved[existing]!.templateId : `mockT${this.counter}`,
       name: req.name,
       baseObjectApiName: req.baseObjectApiName,
       validationStatus: hasUnresolved ? "Invalid" : "Valid",
@@ -335,7 +421,6 @@ export class MockSliickClient implements SliickApi {
       latestVersionId: `mockV${this.counter}`,
       fileName: req.fileName,
     };
-    const existing = this.saved.findIndex((t) => t.name === req.name);
     if (existing >= 0) this.saved[existing] = summary;
     else this.saved.push(summary);
 

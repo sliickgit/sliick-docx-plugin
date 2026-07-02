@@ -65,6 +65,13 @@ export interface CapabilitiesResponse {
     barcodes: boolean;
     signatureTags: boolean;
     pdfOutput: boolean;
+    /**
+     * grammar-v2 flags (sliick-docs sprint docx-grammar-v2, 2026-07).
+     * Optional: pre-grammar-v2 orgs omit them — treat missing as false.
+     */
+    loopFilters?: boolean;
+    fallbackText?: boolean;
+    localeFormats?: boolean;
   };
   limits: {
     maxFileMb: number;
